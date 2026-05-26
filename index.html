@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkedIn Carousel PDF Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <style>
+    .sortable-ghost {
+      opacity: 0.35;
+    }
+    .sortable-drag {
+      cursor: grabbing !important;
+    }
+    .ratio-toggle.active {
+      background: rgb(59 130 246);
+      border-color: rgb(59 130 246);
+      color: white;
+    }
+    .upload-zone.drag-over {
+      border-color: rgb(59 130 246);
+      background: rgb(30 41 59 / 0.8);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-zinc-950 text-zinc-100 font-sans antialiased">
+  <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+
+    <!-- Google AdSense Banner 728x90 -->
+    <div
+      class="mx-auto mb-8 flex h-[90px] max-w-[728px] items-center justify-center rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/50 text-xs text-zinc-500"
+      aria-hidden="true"
+    >
+      Ad placeholder · 728 × 90
+    </div>
+
+    <!-- Header -->
+    <header class="mb-10 text-center">
+      <h1 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        LinkedIn Carousel PDF Generator
+      </h1>
+      <p class="mx-auto mt-3 max-w-2xl text-base text-zinc-400 sm:text-lg">
+        Turn your carousel slides into a single PDF — optimized for LinkedIn in the US &amp; Europe.
+        Upload, reorder, and export in seconds.
+      </p>
+    </header>
+
+    <!-- Control Panel -->
+    <section class="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 sm:p-6">
+      <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-400">
+        Aspect Ratio
+      </h2>
+      <div class="flex flex-wrap gap-3">
+        <button
+          type="button"
+          id="ratio-square"
+          class="ratio-toggle active rounded-lg border border-zinc-700 bg-zinc-800 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500"
+          data-ratio="1:1"
+        >
+          Square <span class="text-zinc-400">(1:1)</span>
+        </button>
+        <button
+          type="button"
+          id="ratio-portrait"
+          class="ratio-toggle rounded-lg border border-zinc-700 bg-zinc-800 px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500"
+          data-ratio="4:5"
+        >
+          Portrait <span class="text-zinc-400">(4:5)</span>
+          <span class="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-400">Recommended</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Upload Zone -->
+    <section class="mb-8">
+      <div
+        id="upload-zone"
+        class="upload-zone group relative cursor-pointer rounded-xl border-2 border-dashed border-zinc-700 bg-zinc-900/40 px-6 py-14 text-center transition hover:border-zinc-500 hover:bg-zinc-900/60"
+        role="button"
+        tabindex="0"
+        aria-label="Upload images"
+      >
+        <input
+          type="file"
+          id="file-input"
+          class="sr-only"
+          accept="image/png,image/jpeg,image/jpg"
+          multiple
+        />
+        <div class="pointer-events-none">
+          <svg class="mx-auto h-12 w-12 text-zinc-500 transition group-hover:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+          </svg>
+          <p class="mt-4 text-base font-medium text-zinc-200">
+            Drag &amp; drop your slides here
+          </p>
+          <p class="mt-1 text-sm text-zinc-500">
+            or click to browse · PNG &amp; JPG · multiple files supported
+          </p>
+        </div>
+      </div>
+      <p id="upload-error" class="mt-2 hidden text-sm text-red-400" role="alert"></p>
+    </section>
+
+    <!-- Preview Grid -->
+    <section class="mb-8">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+          Preview
+        </h2>
+        <span id="image-count" class="text-sm text-zinc-500">0 images</span>
+      </div>
+      <div
+        id="preview-grid"
+        class="grid min-h-[120px] grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4"
+      >
+        <p id="empty-state" class="col-span-full rounded-lg border border-dashed border-zinc-800 py-10 text-center text-sm text-zinc-600">
+          No images yet — upload slides to get started.
+        </p>
+      </div>
+    </section>
+
+    <!-- Export -->
+    <section class="mb-8 text-center">
+      <button
+        type="button"
+        id="export-btn"
+        class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+        disabled
+      >
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Export to PDF
+      </button>
+      <p id="export-error" class="mt-3 hidden text-sm text-red-400" role="alert"></p>
+    </section>
+
+    <!-- Google AdSense Rectangle 300x250 -->
+    <div
+      class="mx-auto flex h-[250px] w-full max-w-[300px] items-center justify-center rounded-lg border border-dashed border-zinc-700/80 bg-zinc-900/50 text-xs text-zinc-500"
+      aria-hidden="true"
+    >
+      Ad placeholder · 300 × 250
+    </div>
+  </div>
+
+  <!-- Loading Modal -->
+  <div
+    id="loading-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm"
+    aria-modal="true"
+    aria-labelledby="loading-title"
+    role="dialog"
+  >
+    <div class="mx-4 w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-8 text-center shadow-2xl">
+      <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-zinc-600 border-t-blue-500"></div>
+      <h3 id="loading-title" class="text-lg font-semibold text-white">Generating PDF...</h3>
+      <p class="mt-2 text-sm text-zinc-400">Generating PDF... (3s)</p>
+    </div>
+  </div>
+
+  <!-- Hidden in-viewport container (html2canvas requires elements inside the viewport) -->
+  <div id="render-container" class="pointer-events-none fixed left-0 top-0 -z-50 opacity-0" aria-hidden="true"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const RATIOS = {
+        '1:1': { width: 1080, height: 1080 },
+        '4:5': { width: 1080, height: 1350 },
+      };
+
+      const PDF_PAGE_MM = {
+        '1:1': { width: 210, height: 210 },
+        '4:5': { width: 168, height: 210 },
+      };
+
+      const EXPORT_DELAY_MS = 3000;
+
+      let aspectRatio = '1:1';
+      let images = [];
+      let nextId = 0;
+      let sortable = null;
+
+      const uploadZone = document.getElementById('upload-zone');
+      const fileInput = document.getElementById('file-input');
+      const previewGrid = document.getElementById('preview-grid');
+      const emptyState = document.getElementById('empty-state');
+      const imageCount = document.getElementById('image-count');
+      const exportBtn = document.getElementById('export-btn');
+      const exportError = document.getElementById('export-error');
+      const uploadError = document.getElementById('upload-error');
+      const loadingModal = document.getElementById('loading-modal');
+      const renderContainer = document.getElementById('render-container');
+      const ratioButtons = document.querySelectorAll('.ratio-toggle');
+
+      function hideError(el) {
+        el.textContent = '';
+        el.classList.add('hidden');
+      }
+
+      function showError(el, message) {
+        el.textContent = message;
+        el.classList.remove('hidden');
+      }
+
+      function getRatioDimensions() {
+        return RATIOS[aspectRatio];
+      }
+
+      function getPdfPageSize() {
+        return PDF_PAGE_MM[aspectRatio];
+      }
+
+      /**
+       * Center-cover: scale image to fill the target area, crop excess equally
+       * from all sides via a centered source rectangle (never stretch or anchor
+       * crop to bottom/right).
+       */
+      function drawImageCenterCover(ctx, img, destWidth, destHeight) {
+        const srcWidth = img.naturalWidth;
+        const srcHeight = img.naturalHeight;
+        const srcRatio = srcWidth / srcHeight;
+        const destRatio = destWidth / destHeight;
+
+        let cropX;
+        let cropY;
+        let cropWidth;
+        let cropHeight;
+
+        if (srcRatio > destRatio) {
+          cropHeight = srcHeight;
+          cropWidth = srcHeight * destRatio;
+          cropX = (srcWidth - cropWidth) / 2;
+          cropY = 0;
+        } else {
+          cropWidth = srcWidth;
+          cropHeight = srcWidth / destRatio;
+          cropX = 0;
+          cropY = (srcHeight - cropHeight) / 2;
+        }
+
+        ctx.drawImage(
+          img,
+          cropX,
+          cropY,
+          cropWidth,
+          cropHeight,
+          0,
+          0,
+          destWidth,
+          destHeight
+        );
+      }
+
+      async function renderSlideToCanvas(item) {
+        const dims = getRatioDimensions();
+        const source = await ensureDataUrl(item);
+        const canvas = document.createElement('canvas');
+        canvas.width = dims.width;
+        canvas.height = dims.height;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          throw new Error('Canvas is not supported in this browser');
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, dims.width, dims.height);
+
+        const img = await loadImage(source);
+        drawImageCenterCover(ctx, img, dims.width, dims.height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        if (!dataUrl || dataUrl.length < 100) {
+          throw new Error('Failed to encode slide image');
+        }
+
+        return dataUrl;
+      }
+
+      function createPdfDocument(JsPDF) {
+        const page = getPdfPageSize();
+        const isLandscape = page.width > page.height;
+
+        return new JsPDF({
+          orientation: isLandscape ? 'landscape' : 'portrait',
+          unit: 'mm',
+          format: [page.width, page.height],
+          compress: true,
+        });
+      }
+
+      function addPdfPage(pdf, pageIndex) {
+        const page = getPdfPageSize();
+        const isLandscape = page.width > page.height;
+
+        if (pageIndex === 0) {
+          return;
+        }
+
+        pdf.addPage([page.width, page.height], isLandscape ? 'landscape' : 'portrait');
+      }
+
+      async function generatePDF() {
+        const JsPDF = getJsPDFConstructor();
+        if (!JsPDF) {
+          throw new Error('PDF library failed to load. Please refresh and check your connection.');
+        }
+
+        const page = getPdfPageSize();
+        let pdf = null;
+
+        for (let i = 0; i < images.length; i++) {
+          const slideDataUrl = await renderSlideToCanvas(images[i]);
+
+          if (i === 0) {
+            pdf = createPdfDocument(JsPDF);
+          } else {
+            addPdfPage(pdf, i);
+          }
+
+          pdf.addImage(
+            slideDataUrl,
+            'JPEG',
+            0,
+            0,
+            page.width,
+            page.height,
+            'slide-' + i,
+            'FAST'
+          );
+        }
+
+        return pdf;
+      }
+
+      function updateUI() {
+        const count = images.length;
+        imageCount.textContent = count === 1 ? '1 image' : count + ' images';
+        exportBtn.disabled = count === 0;
+
+        if (count > 0) {
+          if (emptyState.parentNode === previewGrid) {
+            emptyState.remove();
+          }
+        } else if (!previewGrid.contains(emptyState)) {
+          previewGrid.appendChild(emptyState);
+          emptyState.classList.remove('hidden');
+        }
+      }
+
+      function getJsPDFConstructor() {
+        if (window.jspdf && window.jspdf.jsPDF) {
+          return window.jspdf.jsPDF;
+        }
+        if (typeof window.jsPDF === 'function') {
+          return window.jsPDF;
+        }
+        return null;
+      }
+
+      async function ensureDataUrl(item) {
+        if (item.dataUrl) {
+          return item.dataUrl;
+        }
+        if (item.file) {
+          item.dataUrl = await readFileAsDataUrl(item.file);
+          return item.dataUrl;
+        }
+        if (item.url) {
+          item.dataUrl = item.url;
+          return item.dataUrl;
+        }
+        throw new Error('Missing image data for slide');
+      }
+
+      function downloadPdf(pdf, filename) {
+        const blob = pdf.output('blob');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 1000);
+      }
+
+      function initSortable() {
+        if (sortable) {
+          sortable.destroy();
+        }
+        sortable = Sortable.create(previewGrid, {
+          animation: 180,
+          ghostClass: 'sortable-ghost',
+          dragClass: 'sortable-drag',
+          filter: '#empty-state',
+          draggable: '.preview-card',
+          onEnd: function (evt) {
+            if (evt.oldIndex === evt.newIndex) return;
+            const moved = images.splice(evt.oldIndex, 1)[0];
+            images.splice(evt.newIndex, 0, moved);
+          },
+        });
+      }
+
+      function createPreviewCard(item, index) {
+        const card = document.createElement('div');
+        card.className = 'preview-card group relative cursor-grab overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-sm active:cursor-grabbing';
+        card.dataset.id = item.id;
+
+        const ratio = getRatioDimensions();
+        const aspectStyle = aspectRatio === '1:1' ? 'aspect-square' : 'aspect-[4/5]';
+
+        card.innerHTML =
+          '<div class="' + aspectStyle + ' relative bg-zinc-800">' +
+            '<img src="' + item.url + '" alt="Slide ' + (index + 1) + '" class="h-full w-full object-cover" draggable="false" />' +
+            '<span class="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs font-medium text-white">' + (index + 1) + '</span>' +
+            '<button type="button" class="delete-btn absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500/90 text-white opacity-0 transition hover:bg-red-500 group-hover:opacity-100" aria-label="Remove slide ' + (index + 1) + '">' +
+              '<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>' +
+            '</button>' +
+          '</div>';
+
+        card.querySelector('.delete-btn').addEventListener('click', function (e) {
+          e.stopPropagation();
+          removeImage(item.id);
+        });
+
+        return card;
+      }
+
+      function renderPreview() {
+        previewGrid.querySelectorAll('.preview-card').forEach(function (el) {
+          el.remove();
+        });
+
+        images.forEach(function (item, index) {
+          previewGrid.appendChild(createPreviewCard(item, index));
+        });
+
+        updateUI();
+      }
+
+      function removeImage(id) {
+        const item = images.find(function (img) { return img.id === id; });
+        if (item) {
+          URL.revokeObjectURL(item.url);
+        }
+        images = images.filter(function (img) { return img.id !== id; });
+        renderPreview();
+        hideError(exportError);
+      }
+
+      function isValidImageFile(file) {
+        const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+        return validTypes.includes(file.type) || /\.(png|jpe?g)$/i.test(file.name);
+      }
+
+      async function addFiles(fileList) {
+        hideError(uploadError);
+        const files = Array.from(fileList).filter(isValidImageFile);
+
+        if (files.length === 0) {
+          showError(uploadError, 'Please upload valid PNG or JPG images.');
+          return;
+        }
+
+        try {
+          for (const file of files) {
+            const dataUrl = await readFileAsDataUrl(file);
+            images.push({
+              id: nextId++,
+              file: file,
+              url: URL.createObjectURL(file),
+              dataUrl: dataUrl,
+            });
+          }
+          renderPreview();
+        } catch (err) {
+          console.error(err);
+          showError(uploadError, 'Failed to read one or more images. Please try again.');
+        }
+      }
+
+      function setAspectRatio(ratio) {
+        aspectRatio = ratio;
+        ratioButtons.forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.ratio === ratio);
+        });
+        renderPreview();
+      }
+
+      function readFileAsDataUrl(file) {
+        return new Promise(function (resolve, reject) {
+          const reader = new FileReader();
+          reader.onload = function () { resolve(reader.result); };
+          reader.onerror = function () { reject(new Error('Failed to read image file')); };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function loadImage(src) {
+        return new Promise(function (resolve, reject) {
+          const img = new Image();
+          img.onload = function () { resolve(img); };
+          img.onerror = function () { reject(new Error('Failed to load image')); };
+          img.src = src;
+        });
+      }
+
+
+      async function handleExport() {
+        hideError(exportError);
+
+        if (images.length === 0) {
+          showError(exportError, 'Please upload at least one image before exporting.');
+          return;
+        }
+
+        if (!getJsPDFConstructor()) {
+          showError(exportError, 'PDF library failed to load. Please refresh the page.');
+          return;
+        }
+
+        exportBtn.disabled = true;
+        loadingModal.classList.remove('hidden');
+        loadingModal.classList.add('flex');
+
+        try {
+          await new Promise(function (resolve) {
+            setTimeout(resolve, EXPORT_DELAY_MS);
+          });
+
+          const pdf = await generatePDF();
+          const filename = 'linkedin-carousel-' + aspectRatio.replace(':', 'x') + '.pdf';
+          downloadPdf(pdf, filename);
+        } catch (err) {
+          console.error(err);
+          const detail = err && err.message ? err.message : 'Unknown error';
+          showError(exportError, 'Failed to generate PDF: ' + detail);
+        } finally {
+          exportBtn.disabled = images.length === 0;
+          loadingModal.classList.add('hidden');
+          loadingModal.classList.remove('flex');
+        }
+      }
+
+      uploadZone.addEventListener('click', function () {
+        fileInput.click();
+      });
+
+      uploadZone.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          fileInput.click();
+        }
+      });
+
+      fileInput.addEventListener('change', function () {
+        if (fileInput.files.length) {
+          addFiles(fileInput.files).catch(function (err) {
+            console.error(err);
+            showError(uploadError, 'Failed to read one or more images. Please try again.');
+          });
+          fileInput.value = '';
+        }
+      });
+
+      uploadZone.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        uploadZone.classList.add('drag-over');
+      });
+
+      uploadZone.addEventListener('dragleave', function () {
+        uploadZone.classList.remove('drag-over');
+      });
+
+      uploadZone.addEventListener('drop', function (e) {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+          addFiles(e.dataTransfer.files).catch(function (err) {
+            console.error(err);
+            showError(uploadError, 'Failed to read one or more images. Please try again.');
+          });
+        }
+      });
+
+      ratioButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setAspectRatio(btn.dataset.ratio);
+        });
+      });
+
+      exportBtn.addEventListener('click', handleExport);
+
+      initSortable();
+      updateUI();
+    })();
+  </script>
+</body>
+</html>
